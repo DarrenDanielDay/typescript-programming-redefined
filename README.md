@@ -521,7 +521,7 @@ let cls: new (param: string) => object = class {    // ES6的class语法本质�
 `{ readonly name: string }`|属性|`{ obj \| obj.name ∈ string，且不可修改obj.name }` | 同上
 `{ "my-name": string }`|属性|`{ obj \| obj["my-name"] ∈ string }`|`string`可为任意类型，`"my-name"`可为任意字符串
 `{ [Symbol.iterator]: string }`|属性|`{ obj \| obj[Symbol.iterator] ∈ string }`|`string`可为任意类型，`Symbol.iterator`可为任意类型为`symbol`的变量、属性表达式（例如`foo.bar.baz`）或字符串字面量
-`{ name(): void }`|方法|`{ obj \| obj.name ∈ () => void }`|`name`的位置语法同上述的属性名，但不能被`readonly`修饰，`(): void`对应函数类型的语法`() => void`
+`{ name(): void }`|方法|`{ obj \| obj.name ∈ () => void }`|`name`的位置语法同上述的属性名，但不能被`readonly`修饰，`(): void`对应函数类型的语法`() => void`，可以有多个重载
 `{ [name: string]: number }`|索引签名|`{ obj \| 对于任意name ∈ string，有obj[name] ∈ number ∪ undefined }`|`name`可为任意合法JavaScript标识符且不影响语义，`string`处必须是`string`或者`number`，`number`处可为任意类型
 `{ (): void }`|调用签名|`{ obj \| obj ∈ () => void }`| 不能被`?`修饰，参数列表和返回值语法同函数类型
 `{ new(count: number): string }`|构造签名|`{ obj \| (count) => new obj(count) ∈ (count: number) => string }`| 不能被`readonly`和`?`修饰，类似于函数类型
@@ -543,6 +543,8 @@ let g: {(): void} = function() {
 }
 let h: { new(name: string): object } = class { constructor(name) { console.log(name); } };
 ```
+
+---
 
 你可能会注意到一个细节：我们给一个具有对象类型标注的变量赋值的时候不能添加类型标注里没有声明的属性，像这样：
 
@@ -583,6 +585,8 @@ let foo: { bar?: string } = { baz: "value" };
 
 如果你不想要这个检查，你可以通过编译器选项`suppressExcessPropertyErrors`关闭这个检查。
 
+---
+
 #### TypeScript类型集合的运算
 
 前文已经提到了部分类型运算：联合类型正是类型集合的并集运算。下面也通过一个表进行简单的总结（大写字母一般都代指类型，未备注的都可为任意类型）：
@@ -591,23 +595,229 @@ let foo: { bar?: string } = { baz: "value" };
 -|-|-|-
 联合类型|`A \| B`|`{ obj \| obj ∈ A 或 obj ∈ B }`，即`A ∪ B`|
 交叉类型|`A & B`|`{ obj \| obj ∈ A 且 obj ∈ B }`，即`A ∩ B`|
-`keyof`操作符|`keyof A`|A的所有属性名/方法名（包括可选）的集合|`A`可为任何类型，开启编译器选项`keyofStringsOnly`后只包括字符串属性名，结果将不包含`number`和`symbol`
+`keyof`操作符|`keyof A`|A的所有属性名/方法名（包括可选）的集合|开启编译器选项`keyofStringsOnly`后只包括字符串属性名，结果将不包含`number`和`symbol`
 `typeof`操作符|`typeof obj`|`obj`在当前上下文内的类型|所有变量/属性在一个特定上下文内都有确定的类型，`typeof`操作符可用于获取这个类型。`obj`可以是一个变量名或属性表达式
-索引类型|`A[B]`|`{ value \| 存在 obj ∈ A 和 key ∈ B，使得value ∈ typeof obj[key] }`|`A`可为任何类型，`B`须满足`B ⊆ keyof A`，如果强行忽略错误，结果将会是`any`
-条件类型|`A extends B ? C : D`|`若A ⊆ B`，则结果为`C`，否则为`D`|`B`中可以使用`infer`子句，并且`C`中可以使用这些`infer`子句产生的新类型名
+索引类型|`A[B]`|`{ value \| 存在 obj ∈ A 和 key ∈ B，使得value ∈ typeof obj[key] }`|`B`须满足`B ⊆ keyof A`，如果强行忽略错误，结果将会是`any`
+条件类型|`A extends B ? C : D`|`若A ⊆ B`，则结果为`C`，否则为`D`|`B`中可以使用`infer`子句，并且`C`中可以使用这些`infer`子句产生的新类型名的类型表达式
 条件类型|`A extends B ? C : D`|`若A ⊆ B`，则结果为`C`，否则为`D`|B须满足`B ⊆ keyof A`，如果强行忽略错误结果将会是`any`
 映射类型|`{ [K in Keys]: T }`|`{ obj \| 对任意K ∈ Keys，obj[K] ∈ T }`|`Keys`须满足`Keys ⊆ string \| number \| symbol`，`T`中可以使用`K`的类型表达式
 映射类型|`{ [K in Keys as Renamed]: T }`|`{ obj \| 对任意K ∈ Renamed，obj[K] ∈ T }`|`Renamed`中可以使用`K`的类型表达式，且须满足`Renamed ⊆ string \| number \| symbol`，`T`中可以使用`K`和`Renamed`的类型表达式
+模板字符串类型|`ˋ${A}ˋ`|`A`转换成字符串后的字符串|`A`须满足`A ⊆ string \| number \| bigint \| boolean \| null \| undefined`，可在花括号外使用字面值，类似于JavaScript的字符串模板
+数组类型|`A[]`|`{ arr \| Array.isArray(arr) 且 arr.every(item => item ∈ A) }`|并非需要是Array类型，可以是具有数组所有属性和方法的平凡对象
+数组类型|`readonly A[]`|`{ arr \| Array.isArray(arr) 且 arr.every(item => item ∈ A) 且所有元素只读 }`|并非需要是Array类型，可以是具有数组所有属性和方法的平凡对象
+元组类型|`[A, B, C]`|`{ tuple \| Array.isArray(tuple) 且 tuple[0] ∈ A 且 tuple[1] ∈ B 且 tuple[2] ∈ C }`|`A`，`B`，`C`可以有任意个，包括0个
+元组类型|`[A, B, ...C]`|`{ tuple \| Array.isArray(tuple) 且 tuple[0] ∈ A 且 tuple[1] ∈ B 且 tuple.slice(2) ∈ C }`|`C`须满足`C ⊆ readonly unknown[]`
 
-#### interface与type的真正区别
+##### 为什么联合类型看到的字段是交集，交叉类型看到的字段是并集
 
-先上结论：`interface`是`数据结构`，而`type`是算法。
+请看下面的代码： 
+
+```ts
+let a: { name: string; age?: number } | { name: string; price?: number } = {
+    name: "reimu",
+    age: 16,
+    price: 100000,
+}
+
+a.name  // OK
+a.age   // Error
+a.price // Error
+
+let b: { name: string; age?: number } & { name: string; price?: number } = {
+    name: "reimu",
+    age: 16,
+    price: 100000,
+}
+b.name  // OK
+b.age   // OK
+b.price // OK
+```
+
+或许你已经注意到了这样的现象：对于联合类型的变量，我们可以访问的属性是所有被联合在一起的类型的属性的交集，而我们能访问交叉类型的变量的属性是其并集。
+
+这并不是什么错误，而恰恰是正确的。并集中的元素共有的性质是各自性质的交集，交集中元素的元素共有的性质是各自性质的并集。
+
+举例而言，有一群带着帽子的男人A和一群带帽子的女人B，把A和B合在一起得到A和B的并集C，我们只能知道C里面的人是戴帽子的——这就是联合类型只能访问属性的交集的原因。
+
+有一群带着帽子的人A和一群打了领带的人B，把既算在人群A又算在人群B里的人找出来构成A和B的交集C，我们能知道C里面的人一定是又戴帽子又打领带的——这就是交叉类型可以访问属性的并集的原因。
+
+理解这一个现象的关键在于：具有某个类型的属性（具有某个类型的字段）是一种对JavaScript对象的性质的描述，而并不应该将类型的属性（字段）理解为“类型集合的元素”——类型集合里的元素是具体的JavaScript原始值或对象，具有某个类型的属性（字段）是类似前文例子中提到的“带了帽子”的一种性质。
+
+#### interface与type：真正区别在哪里
+
+interface与type都是更方便地表示类型的方案，但两者的本质完全不同。
+
+先上结论：`interface`是**数据结构**，而`type`是**算法**。
+
+网上关于TypeScript理解的技术博客几乎无一例外地提到了`interface`与`type`的区分与理解，并且绝大多数博主都会提到这一点。而对于区别与相似点的解释无外乎以下三个点：
+
+1. 都表示类型且可以扩展，但interface用extends来扩展，type用&来扩展
+2. interface可以声明合并，type不能
+3. type可以用特殊的表示类型的语法，例如联合类型、元组类型等，而interface不能
+
+这些都是**非常表层的区别**。在笔者看来，interface与type在概念上**没有任何重合**。
+
+**你觉得他们很像，我觉得他们完全不是同一个概念**。
+
+在解释这一切之前，我们先来看看interface与type的语法。
+
+##### type
+
+```ts
+type A = "a" | "b" | "c";
+type B = "c" | "d" | "e";
+type C = A & B;
+type U = A | B;
+type Mapped = {
+  [K in U]: K
+};
+let mapped: Mapped = {
+    a: 'a',
+    b: 'b',
+    c: 'c',
+    d: 'd',
+    e: 'e'
+}
+```
+
+type的语法很简单，就像是声明变量一样：`type 名称 = 类型表达式`
+
+本节之前没有使用过任何type声明，是为了让读者能在这里看清楚type的真正设计：type的全称是**类型别名（type alias）**，是为了给一些重复的类型声明一个代称——给类型集合一个概念名称。
+
+但type真的只是一个代称吗？并不是，因为type的右边允许是一个类型表达式——它可以包含类型运算。
+进一步思考：如果这些运算的结果是确定的，那为什么要用运算的方式来产生这些类型呢？便于在用于运算的类型被修改时同步影响到这些运算得到的类型——type本质是定义一种类型的映射关系。
+
+给定输入结果便确定的映射关系，在编程中可以用**纯函数**来表示。这就印证了开头的观点：type是纯函数，是从类型映射到类型的算法。
+如果我们感觉到这样的映射关系还不够灵活，给这些纯函数添加额外的可传入的参数——泛型就这样产生了。
+
+定义一个type泛型，就是定义外部可传入的参数——这和上文的`type C = A & B`直接在闭包中捕获A和B作为运算参数不一样，具有更大的灵活性。
+
+例如
+
+```ts
+type Intersection<One extends string, Two extends string> = One & Two;
+```
+
+正如定义单表达式纯函数一样，你需要定义函数名，参数名，参数约束（该参数必须为extends后面的类型的子集），以及函数体（类型运算表达式）。这些参数就是所谓的范型变量，他们可用于后面的类型运算表达式。当你明白泛型参数本质是函数的参数时，你不难发现这样看起来奇怪的写法是符合语法的：
+
+```ts
+type Foo<> = "a" | "b"
+```
+
+这相当于定义一个不接收参数的函数——语义和`type Foo = "a" | "b"`一样。
+
+type使用`=`的理由是：type是一种类型映射函数的定义，应当画上等号。定义必须是确定的，不允许有多种可能。
+
+此外，泛型还可以用于泛型函数（泛型方法）。泛型函数的泛型变量和type/interface泛型不一样，可以通过函数调用实参自动推导，也可以手动传入推导（一旦选择传入就需要所有泛型变量都传入），并在推导出类型的上下文中产生类型集合的约束。
+
+```ts
+const echo = <T>(obj: T) => T;
+const hello = echo("hello");        // hello: string
+const one = echo(1);                // one: number
+const obj = echo<unknown>(null);    // obj: unknown
+```
+
+##### interface
+
+interface可以声明一个对象的属性与方法，以及索引签名、调用签名、构造签名——和对象的描述法完全一致。举例：
+
+```ts
+interface Rectangle {
+    width: number;
+    height: number;
+    type: string
+}
+interface Diamond {
+    edge: number;
+    type: string
+}
+```
+
+interface可以通过扩展其他类型，被扩展的类型必须是一个类型名或泛型（泛型稍后会介绍），而不能是原始类型或类型表达式。
+
+被扩展的类型可以有任意多个，但这些类型如果具有同名属性则必须一致。
+
+interface扩展其他类型时可以添加对象的性质（属性方法、各种签名），最终的interface具有所有的性质。
+
+如果在扩展的interface中使用了被扩展的类型中已经声明过的同名的属性，必须满足属性的类型是原来声明的子类型（子集）。
+
+下面的例子综合了以上几点：
+
+```ts
+interface Square extends Rectangle, Diamond {
+    type: "square"
+    getArea(): number;
+}
+```
+
+> 仔细思考一下，你会发现interface的extends只是恰好看起来与type里面可以使用的&运算有相似的属性合并作用罢了——联合类型这个与交叉类型对称的语法在interface中根本就没有对应的机制。
+> 与其说是type与interface在扩展属性的语法上有`&`和`extends`的区别，倒不如说这两个毫不相干的语法都具有叠加属性的语义，但interface的`extends`有属性的约束，而type里面可以用的`&`没有这种约束。
+
+interface**是一个声明**，**而不是一个定义**。具有声明性质使得他的组成部分可以分散在各处，并最终被合并到一起。这就是所谓的声明合并。
+
+```ts
+interface Person {
+    name: string;
+}
+interface Person {
+    run(): void;
+}
+
+let jojo: Person = {
+    name: "Joseph Joestar",
+    run() {
+        console.log("逃げるんだよ");
+    }
+}
+```
+
+interface可以使用泛型——interface的泛型是一个“模板”，用于生成结构相似的interface。与type不同的是，interface的泛型变量**不能用于构造自身的结构**，而只能用于**构造自身属性的类型**——换言之，interface的结构（属性方法与各种签名）必须通过声明确定，而不能通过类型运算确定。下面这个例子指出了两种泛型能力范围不同的点：
+
+```ts
+type Conditional<T> = {
+    [K in Extract<keyof T, string> as `get${Capitalize<K>}`]: () => T[K]
+}
+// 用interface无论如何都实现不了
+```
+
+总结一下，interface是完全用于表示**对象的结构**的，也就是所谓的**数据结构**。
 
 #### TypeScript中的class
 
 `class`是TypeScript的一个大坑——因为声明一个class既声明了一个函数，又声明了一种类型。如果没有在一开始就明确地知道类型与值的区别，很容易搞混概念。
 
+class作为值是一个构造器，具有对应的构造签名。
+
+class作为类型是其实例具有的结构描述，包括属性和方法。
+
+静态属性和静态方法都在构造器上，属于构造器的类型，不能靠implements关键字约束，如要约束需要写一些又臭又长的代码：
+
+```ts
+interface FooConstructor {
+    bar: string;
+    new(prop: number): Foo
+}
+interface Foo {
+    prop: number;
+}
+const Foo: FooConstructor = class implements Foo {
+    static bar = ""
+    prop: number
+    constructor(prop: number) {
+        this.prop = prop
+    }
+}
+```
+
 ### ESNext: ECMAScript标准最新草案实验性特性的降级编译
+
+这里简单列举一些较新的TypeScript支持降级编译的语法：
+
+1. class
+2. 装饰器
+3. async/await
+4. esmodule import
+5. optional chaining & nullish coalescing
 
 ## 结语
 
